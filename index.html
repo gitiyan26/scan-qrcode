@@ -7,31 +7,51 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8" defer></script>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: Arial, sans-serif; background: #f3f6fa; color: #233047; }
-    header { background: #0b3c95; color: white; padding: 18px; text-align: center; font-weight: bold; }
-    main { max-width: 900px; margin: auto; padding: 24px 16px; }
-    .panel { background: white; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 8px 25px rgba(0,0,0,.08); }
-    h1 { color: #0b3c95; }
-    #reader { max-width: 520px; margin: 20px auto; overflow: hidden; border-radius: 12px; }
-    #status { line-height: 1.5; }
+    body { margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; font-family: Arial, sans-serif; background: #eef4fa; color: #17243b; }
+    header { position: relative; background: #0b3c95; color: white; padding: 16px 140px; text-align: center; font-weight: bold; letter-spacing: .04em; }
+    main { width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: clamp(12px, 2vh, 30px) clamp(16px, 3vw, 36px); }
+    .panel { width: min(100%, 1200px); text-align: center; }
+    h1 { color: #0b3c95; margin: 0 0 8px; font-size: clamp(24px, 3.2vw, 38px); text-transform: uppercase; }
+    .panel > p { margin: 0; color: #536378; }
+    #reader { width: min(100%, 520px); margin: 20px auto; overflow: hidden; border-radius: 12px; background: #e2e8f0; }
+    #status { line-height: 1.5; margin: 14px 0; }
     .error { color: #b02a37; }
-    button { border: 0; border-radius: 8px; padding: 13px 20px; font-size: 16px; cursor: pointer; background: #0b3c95; color: white; }
+    button { border: 0; border-radius: 8px; padding: 13px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #0b3c95; color: white; }
+    button:focus-visible { outline: 3px solid #f4a926; outline-offset: 3px; }
     button:disabled { opacity: .5; cursor: not-allowed; }
-    .secondary { background: #6c757d; }
-    .candidates { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin: 24px 0; }
-    .candidate { background: white; color: #233047; border: 3px solid #dce3ed; padding: 12px; }
-    .candidate.selected { border-color: #198754; background: #eaf8ef; }
-    .candidate img, .placeholder { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #e9ecef; border-radius: 8px; }
-    .placeholder { display: grid; place-items: center; }
-    .candidate strong { display: block; margin-top: 10px; }
-    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 16px; }
-    .modal { background: white; border-radius: 16px; padding: 28px; max-width: 440px; width: 100%; text-align: center; }
-    .actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+    .secondary { background: #52647a; }
+    .fullscreen { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); padding: 8px 12px; font-size: 12px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.55); }
+    .candidates { display: flex; justify-content: center; flex-wrap: wrap; gap: clamp(10px, 2vw, 20px); margin: clamp(16px, 3vh, 30px) 0; }
+    .candidate { display: flex; flex-direction: column; width: clamp(120px, min(18vw, (100dvh - 415px) * .8), 210px); padding: 0; overflow: hidden; background: white; color: #17243b; border: 3px solid #293a4f; border-radius: 4px; box-shadow: 0 5px 15px rgba(24,43,66,.1); }
+    .candidate.selected { border-color: #198754; box-shadow: 0 0 0 4px rgba(25,135,84,.2); }
+    .candidate-number { width: 100%; padding: 6px; font-size: clamp(20px, 2.4vw, 28px); border-bottom: 2px solid #293a4f; }
+    .candidate-photo, .placeholder { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; background: #e0e7ef; }
+    .placeholder { display: grid; place-items: center; color: #64748b; font-size: 14px; }
+    .candidate-name { width: 100%; min-height: 48px; display: grid; place-items: center; padding: 8px; border-top: 2px solid #293a4f; overflow-wrap: anywhere; }
+    #choose { width: min(100%, 640px); background: #bd2735; }
+    .overlay { position: fixed; inset: 0; background: rgba(10,22,40,.72); display: grid; place-items: center; padding: 16px; overflow-y: auto; }
+    .modal { background: white; border-radius: 16px; padding: clamp(18px, 3vh, 28px); max-width: 480px; width: 100%; max-height: calc(100dvh - 32px); overflow-y: auto; text-align: center; box-shadow: 0 18px 60px rgba(0,0,0,.25); }
+    .modal h2 { margin: 0 0 8px; color: #0b3c95; }
+    .modal p { margin: 10px 0; }
+    .modal-photo { width: min(180px, 28vh); margin: 12px auto; border: 2px solid #dce3ed; border-radius: 8px; overflow: hidden; }
+    .modal-photo .candidate-photo, .modal-photo .placeholder { aspect-ratio: 4 / 5; }
+    #modalDetail { font-size: 20px; font-weight: bold; }
+    .actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .orientation-hint { display: none; text-align: center; font-size: 13px; color: #536378; padding: 8px; }
+    @media (orientation: portrait) and (max-width: 900px) { .orientation-hint { display: block; } }
+    @media (max-width: 600px) {
+      header { padding: 16px 110px 16px 12px; text-align: left; font-size: 13px; }
+      .candidate { width: min(42%, 180px); }
+    }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <header>SIMULASI PEMILIHAN KEPALA DESA</header>
+  <header>
+    SIMULASI PEMILIHAN KEPALA DESA
+    <button id="fullscreen" class="fullscreen" type="button" hidden>LAYAR PENUH</button>
+  </header>
+  <div class="orientation-hint">Putar perangkat ke posisi landscape untuk tampilan terbaik.</div>
   <main>
     <section id="standby" class="panel">
       <h1>STANDBY SCAN</h1>
@@ -52,6 +72,7 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <h2 id="modalTitle"></h2>
       <p id="modalMessage"></p>
+      <div id="modalPhoto" class="modal-photo" hidden></div>
       <p id="modalDetail"></p>
       <div id="modalActions" class="actions">
         <button id="cancel" class="secondary" type="button">ULANGI</button>
@@ -75,6 +96,7 @@
     const retryCamera = document.getElementById('retryCamera');
     const modal = document.getElementById('modal');
     const choose = document.getElementById('choose');
+    const fullscreen = document.getElementById('fullscreen');
     let scanner = null;
     let running = false;
     let busy = false;
@@ -159,27 +181,45 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'candidate';
-        const photo = candidate.fotoUrl ? document.createElement('img') : document.createElement('span');
-        if (candidate.fotoUrl) {
-          photo.src = candidate.fotoUrl;
-          photo.alt = 'Foto kandidat';
-        } else {
-          photo.className = 'placeholder';
-          photo.textContent = 'FOTO';
-        }
         const number = document.createElement('strong');
-        number.textContent = 'No. ' + candidate.noUrut;
+        number.className = 'candidate-number';
+        number.textContent = candidate.noUrut;
         const name = document.createElement('strong');
+        name.className = 'candidate-name';
         name.textContent = candidate.nama;
-        button.append(photo, number, name);
+        button.setAttribute('aria-pressed', 'false');
+        button.append(number, createCandidatePhoto(candidate), name);
         button.addEventListener('click', function() {
-          grid.querySelectorAll('.candidate').forEach(function(item) { item.classList.remove('selected'); });
+          grid.querySelectorAll('.candidate').forEach(function(item) {
+            item.classList.remove('selected');
+            item.setAttribute('aria-pressed', 'false');
+          });
           button.classList.add('selected');
+          button.setAttribute('aria-pressed', 'true');
           selected = candidate;
           choose.disabled = false;
         });
         grid.appendChild(button);
       });
+    }
+
+    function createCandidatePhoto(candidate) {
+      function placeholder() {
+        const element = document.createElement('span');
+        element.className = 'placeholder';
+        element.textContent = 'FOTO TIDAK TERSEDIA';
+        return element;
+      }
+      if (!candidate.fotoUrl) return placeholder();
+      const photo = document.createElement('img');
+      photo.className = 'candidate-photo';
+      photo.alt = 'Foto ' + candidate.nama;
+      photo.addEventListener('error', function() {
+        console.error('Foto kandidat gagal dimuat:', candidate.fotoUrl);
+        photo.replaceWith(placeholder());
+      });
+      photo.src = candidate.fotoUrl;
+      return photo;
     }
 
     function returnToStandby() {
@@ -202,20 +242,46 @@
       if (!selected) return;
       document.getElementById('modalTitle').textContent = 'Konfirmasi Pemilihan';
       document.getElementById('modalMessage').textContent = 'Apakah Anda yakin memilih kandidat ini?';
+      const modalPhoto = document.getElementById('modalPhoto');
+      modalPhoto.replaceChildren(createCandidatePhoto(selected));
+      modalPhoto.hidden = false;
       document.getElementById('modalDetail').textContent = 'No. ' + selected.noUrut + ' - ' + selected.nama;
       document.getElementById('modalActions').hidden = false;
       modal.hidden = false;
+      document.getElementById('cancel').focus();
     });
-    document.getElementById('cancel').addEventListener('click', function() { modal.hidden = true; });
+    document.getElementById('cancel').addEventListener('click', function() {
+      modal.hidden = true;
+      choose.focus();
+    });
     document.getElementById('confirm').addEventListener('click', function() {
       if (!selected) return;
       selected = null;
       document.getElementById('modalTitle').textContent = 'Terima kasih sudah memilih';
       document.getElementById('modalMessage').textContent = 'Simulasi pemilihan berhasil.';
+      document.getElementById('modalPhoto').hidden = true;
       document.getElementById('modalDetail').textContent = 'Ini hanya simulasi; pilihan tidak disimpan. Kembali ke scanner dalam 5 detik.';
       document.getElementById('modalActions').hidden = true;
       setTimeout(returnToStandby, 5000);
     });
+    if (document.fullscreenEnabled && document.documentElement.requestFullscreen) {
+      fullscreen.hidden = false;
+      fullscreen.addEventListener('click', async function() {
+        try {
+          if (document.fullscreenElement) {
+            await document.exitFullscreen();
+          } else {
+            await document.documentElement.requestFullscreen();
+          }
+        } catch (error) {
+          console.error('Layar penuh gagal:', error);
+          alert('Layar penuh tidak dapat diaktifkan. Gunakan mode layar penuh pada browser jika tersedia.');
+        }
+      });
+      document.addEventListener('fullscreenchange', function() {
+        fullscreen.textContent = document.fullscreenElement ? 'KELUAR LAYAR PENUH' : 'LAYAR PENUH';
+      });
+    }
     document.addEventListener('DOMContentLoaded', startScanner);
   </script>
 </body>
