@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulasi Pemilihan Kepala Desa</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8" defer></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #f3f6fa; color: #233047; }
+    header { background: #0b3c95; color: white; padding: 18px; text-align: center; font-weight: bold; }
+    main { max-width: 900px; margin: auto; padding: 24px 16px; }
+    .panel { background: white; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 8px 25px rgba(0,0,0,.08); }
+    h1 { color: #0b3c95; }
+    #reader { max-width: 520px; margin: 20px auto; overflow: hidden; border-radius: 12px; }
+    #status { line-height: 1.5; }
+    .error { color: #b02a37; }
+    button { border: 0; border-radius: 8px; padding: 13px 20px; font-size: 16px; cursor: pointer; background: #0b3c95; color: white; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .secondary { background: #6c757d; }
+    .candidates { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin: 24px 0; }
+    .candidate { background: white; color: #233047; border: 3px solid #dce3ed; padding: 12px; }
+    .candidate.selected { border-color: #198754; background: #eaf8ef; }
+    .candidate img, .placeholder { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #e9ecef; border-radius: 8px; }
+    .placeholder { display: grid; place-items: center; }
+    .candidate strong { display: block; margin-top: 10px; }
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 16px; }
+    .modal { background: white; border-radius: 16px; padding: 28px; max-width: 440px; width: 100%; text-align: center; }
+    .actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>SIMULASI PEMILIHAN KEPALA DESA</header>
+  <main>
+    <section id="standby" class="panel">
+      <h1>STANDBY SCAN</h1>
+      <p>Arahkan kamera ke QR Code untuk memulai pemilihan.</p>
+      <div id="reader"></div>
+      <p id="status" role="status">Menyiapkan kamera...</p>
+      <button id="retryCamera" type="button" hidden>COBA LAGI</button>
+    </section>
+    <section id="voting" class="panel" hidden>
+      <h1 id="title"></h1>
+      <p>Silakan pilih salah satu kandidat.</p>
+      <div id="candidates" class="candidates"></div>
+      <button id="choose" type="button" disabled>PILIH KANDIDAT INI</button>
+      <div class="actions"><button id="back" class="secondary" type="button">KEMBALI KE SCAN</button></div>
+    </section>
+  </main>
+  <div id="modal" class="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h2 id="modalTitle"></h2>
+      <p id="modalMessage"></p>
+      <p id="modalDetail"></p>
+      <div id="modalActions" class="actions">
+        <button id="cancel" class="secondary" type="button">ULANGI</button>
+        <button id="confirm" type="button">PILIH</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    'use strict';
+    const simulationData = {
+      title: 'Simulasi Pemilihan Kepala Desa',
+      candidates: [
+        { noUrut: '1', nama: 'Kandidat 1', fotoUrl: '' },
+        { noUrut: '2', nama: 'Kandidat 2', fotoUrl: '' },
+        { noUrut: '3', nama: 'Kandidat 3', fotoUrl: '' }
+      ]
+    };
+    const standby = document.getElementById('standby');
+    const voting = document.getElementById('voting');
+    const status = document.getElementById('status');
+    const retryCamera = document.getElementById('retryCamera');
+    const modal = document.getElementById('modal');
+    const choose = document.getElementById('choose');
+    let scanner = null;
+    let running = false;
+    let busy = false;
+    let generation = 0;
+    let selected = null;
+
+    function setStatus(message, isError) {
+      status.textContent = message;
+      status.className = isError ? 'error' : '';
+    }
+
+    async function startScanner() {
+      if (busy || running) return;
+      if (typeof Html5Qrcode === 'undefined') {
+        setStatus('Library scanner tidak termuat. Periksa koneksi internet dan muat ulang halaman.', true);
+        retryCamera.hidden = false;
+        return;
+      }
+      if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('Kamera memerlukan browser yang mendukung akses kamera dan halaman HTTPS.', true);
+        retryCamera.hidden = false;
+        return;
+      }
+      busy = true;
+      retryCamera.hidden = true;
+      setStatus('Meminta akses kamera...', false);
+      const current = ++generation;
+      try {
+        scanner = new Html5Qrcode('reader');
+        await scanner.start({ facingMode: 'environment' }, { fps: 10 }, onScan, function() {});
+        running = true;
+        if (current !== generation) {
+          await scanner.stop();
+          running = false;
+          scanner = null;
+        } else {
+          setStatus('Kamera aktif. Arahkan ke QR Code.', false);
+        }
+      } catch (error) {
+        console.error('Kamera gagal dimulai:', error);
+        scanner = null;
+        running = false;
+        setStatus('Kamera tidak dapat dibuka. Izinkan kamera di browser dan pengaturan perangkat, lalu coba lagi.', true);
+        retryCamera.hidden = false;
+      } finally {
+        busy = false;
+      }
+    }
+
+    async function onScan() {
+      if (busy || !running) return;
+      busy = true;
+      ++generation;
+      setStatus('QR terdeteksi. Memuat kandidat...', false);
+      try {
+        await scanner.stop();
+        running = false;
+        scanner = null;
+        showCandidates(simulationData);
+      } catch (error) {
+        console.error('Gagal memulai pemilihan:', error);
+        setStatus(error.message || 'Gagal memulai pemilihan.', true);
+        retryCamera.hidden = false;
+      } finally {
+        busy = false;
+      }
+    }
+
+    function showCandidates(data) {
+      standby.hidden = true;
+      voting.hidden = false;
+      document.getElementById('title').textContent = data.title || 'Simulasi Pemilihan Kepala Desa';
+      const grid = document.getElementById('candidates');
+      grid.replaceChildren();
+      selected = null;
+      choose.disabled = true;
+      if (!data.candidates.length) {
+        grid.textContent = 'Tidak ada kandidat aktif.';
+        return;
+      }
+      data.candidates.forEach(function(candidate) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'candidate';
+        const photo = candidate.fotoUrl ? document.createElement('img') : document.createElement('span');
+        if (candidate.fotoUrl) {
+          photo.src = candidate.fotoUrl;
+          photo.alt = 'Foto kandidat';
+        } else {
+          photo.className = 'placeholder';
+          photo.textContent = 'FOTO';
+        }
+        const number = document.createElement('strong');
+        number.textContent = 'No. ' + candidate.noUrut;
+        const name = document.createElement('strong');
+        name.textContent = candidate.nama;
+        button.append(photo, number, name);
+        button.addEventListener('click', function() {
+          grid.querySelectorAll('.candidate').forEach(function(item) { item.classList.remove('selected'); });
+          button.classList.add('selected');
+          selected = candidate;
+          choose.disabled = false;
+        });
+        grid.appendChild(button);
+      });
+    }
+
+    function returnToStandby() {
+      modal.hidden = true;
+      voting.hidden = true;
+      standby.hidden = false;
+      selected = null;
+      startScanner();
+    }
+
+    retryCamera.addEventListener('click', function() {
+      if (running) {
+        onScan();
+      } else {
+        startScanner();
+      }
+    });
+    document.getElementById('back').addEventListener('click', returnToStandby);
+    choose.addEventListener('click', function() {
+      if (!selected) return;
+      document.getElementById('modalTitle').textContent = 'Konfirmasi Pemilihan';
+      document.getElementById('modalMessage').textContent = 'Apakah Anda yakin memilih kandidat ini?';
+      document.getElementById('modalDetail').textContent = 'No. ' + selected.noUrut + ' - ' + selected.nama;
+      document.getElementById('modalActions').hidden = false;
+      modal.hidden = false;
+    });
+    document.getElementById('cancel').addEventListener('click', function() { modal.hidden = true; });
+    document.getElementById('confirm').addEventListener('click', function() {
+      if (!selected) return;
+      selected = null;
+      document.getElementById('modalTitle').textContent = 'Terima kasih sudah memilih';
+      document.getElementById('modalMessage').textContent = 'Simulasi pemilihan berhasil.';
+      document.getElementById('modalDetail').textContent = 'Ini hanya simulasi; pilihan tidak disimpan. Kembali ke scanner dalam 5 detik.';
+      document.getElementById('modalActions').hidden = true;
+      setTimeout(returnToStandby, 5000);
+    });
+    document.addEventListener('DOMContentLoaded', startScanner);
+  </script>
+</body>
+</html>
