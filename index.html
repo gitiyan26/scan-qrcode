@@ -24,8 +24,8 @@
     .secondary { background: #52647a; }
     .fullscreen { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); padding: 8px 12px; font-size: 12px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.55); }
     #voting { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 0; }
-    .candidates { width: 100%; flex: 1; max-height: min(55vh, var(--grid-max-height, 300px)); min-height: 0; display: grid; grid-template-columns: repeat(var(--columns, 3), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr)); justify-content: center; gap: clamp(6px, 1.5vw, 16px); margin: clamp(8px, 2vh, 20px) 0; }
-    .candidate { display: flex; flex-direction: column; min-width: 0; min-height: 0; max-width: 220px; width: 100%; justify-self: center; padding: 0; overflow: hidden; background: white; color: #17243b; border: 3px solid #293a4f; border-radius: 4px; box-shadow: 0 5px 15px rgba(24,43,66,.1); }
+    .candidates { width: min(100%, calc(var(--columns, 3) * min(300px, 34vh, 44vw) + (var(--columns, 3) - 1) * 16px)); flex: 1; max-height: min(62vh, var(--grid-max-height, 400px)); min-height: 0; display: grid; grid-template-columns: repeat(var(--columns, 3), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr)); gap: clamp(6px, 1.5vw, 16px); margin: clamp(8px, 2vh, 20px) 0; }
+    .candidate { display: flex; flex-direction: column; min-width: 0; min-height: 0; width: 100%; padding: 0; overflow: hidden; background: white; color: #17243b; border: 3px solid #293a4f; border-radius: 4px; box-shadow: 0 5px 15px rgba(24,43,66,.1); }
     .candidate.selected { border-color: #198754; box-shadow: 0 0 0 4px rgba(25,135,84,.2); }
     .candidate-number { width: 100%; padding: 6px; font-size: clamp(20px, 2.4vw, 28px); border-bottom: 2px solid #293a4f; }
     .candidate-photo, .placeholder { display: block; width: 100%; background: #e0e7ef; }
@@ -222,7 +222,23 @@
       const grid = document.getElementById('candidates');
       grid.style.setProperty('--columns', columns);
       grid.style.setProperty('--rows', rows);
-      grid.style.setProperty('--grid-max-height', (rows * 300 + (rows - 1) * 16) + 'px');
+      grid.style.setProperty('--grid-max-height', (rows * 400 + (rows - 1) * 16) + 'px');
+    }
+
+    function candidatePhotoUrl(url) {
+      try {
+        const parsed = new URL(url, document.baseURI);
+        if (parsed.hostname === 'drive.google.com') {
+          const match = parsed.pathname.match(/^\/file\/d\/([a-zA-Z0-9_-]+)/);
+          const id = match ? match[1] : parsed.searchParams.get('id');
+          if (id && /^[a-zA-Z0-9_-]+$/.test(id)) {
+            return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w1000';
+          }
+        }
+      } catch (error) {
+        console.error('Alamat foto tidak valid:', error);
+      }
+      return url;
     }
 
     function createCandidatePhoto(candidate) {
@@ -240,7 +256,7 @@
         console.error('Foto kandidat gagal dimuat:', candidate.fotoUrl);
         photo.replaceWith(placeholder());
       });
-      photo.src = candidate.fotoUrl;
+      photo.src = candidatePhotoUrl(candidate.fotoUrl);
       return photo;
     }
 
